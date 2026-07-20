@@ -20,6 +20,56 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------
+# THEME TERMINAL (CSS)
+# ---------------------------------------------------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+.stApp {
+    background-color: #0a0e14;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+.section-title {
+    color: #ff5fd0;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.5px;
+    margin-top: 6px;
+}
+.section-line {
+    border: none;
+    border-top: 1px solid #2a2f3a;
+    margin: 4px 0 14px 0;
+}
+.info-row {
+    color: #c9d1d9;
+    font-size: 0.95rem;
+    margin: 3px 0;
+    line-height: 1.5;
+}
+.branch { color: #3a3f4a; margin-right: 6px; }
+.v-green { color: #39d353; font-weight: 700; }
+.v-pink  { color: #ff5fd0; font-weight: 700; }
+.v-cyan  { color: #56d4dd; font-weight: 700; }
+.v-yellow{ color: #e3b341; font-weight: 700; }
+</style>
+""", unsafe_allow_html=True)
+
+def titre_section(titre, icone=""):
+    st.markdown(
+        f'<div class="section-title">{icone} {titre}</div><hr class="section-line">',
+        unsafe_allow_html=True
+    )
+
+def ligne_info(icone, label, valeur, couleur="v-green"):
+    st.markdown(
+        f'<div class="info-row"><span class="branch">│</span>{icone} {label} : '
+        f'<span class="{couleur}">{valeur}</span></div>',
+        unsafe_allow_html=True
+    )
+
+# ---------------------------------------------------------------
 # RESSOURCES ASTRONOMIQUES (mise en cache)
 # ---------------------------------------------------------------
 @st.cache_resource
@@ -74,17 +124,12 @@ def formater_duree(td):
     return f"{minutes} min {secondes} s"
 
 def formater_heure(dt):
-    return dt.astimezone(TZ_LOCAL).strftime("%H:%M:%S")
+    return dt.astimezone(TZ_LOCAL).strftime("%H:%M")
 
 # ---------------------------------------------------------------
 # CALCUL DES HEURES PLANÉTAIRES
 # ---------------------------------------------------------------
 def calculer_heures_planetaires(date_cible):
-    """
-    Découpe le jour (lever->coucher) et la nuit (coucher->lever du lendemain)
-    en 12 heures planétaires chacun, selon l'ordre chaldéen, en partant
-    de la planète régente du jour de la semaine.
-    """
     s_jour = sun(lieu.observer, date=date_cible, tzinfo=TZ_LOCAL)
     s_lendemain = sun(lieu.observer, date=date_cible + timedelta(days=1), tzinfo=TZ_LOCAL)
 
@@ -106,7 +151,7 @@ def calculer_heures_planetaires(date_cible):
         debut = lever + duree_jour * i
         fin = lever + duree_jour * (i + 1)
         heures.append({
-            "numero": i + 1, "type": "Jour", "planete": planete,
+            "numero": i + 1, "type": "Diurne", "planete": planete,
             "debut": debut, "fin": fin, "duree": duree_jour
         })
 
@@ -115,11 +160,11 @@ def calculer_heures_planetaires(date_cible):
         debut = coucher + duree_nuit * i
         fin = coucher + duree_nuit * (i + 1)
         heures.append({
-            "numero": i + 1, "type": "Nuit", "planete": planete,
+            "numero": i + 1, "type": "Nocturne", "planete": planete,
             "debut": debut, "fin": fin, "duree": duree_nuit
         })
 
-    return heures, nom_jour, planete_regente, lever, coucher
+    return heures, nom_jour, planete_regente, lever, coucher, duree_jour, duree_nuit
 
 def heure_planetaire_courante(heures, maintenant):
     for h in heures:
@@ -146,23 +191,52 @@ def nom_phase_lunaire(angle_deg):
     else:
         return "Dernier Quartier"
 
+def calculer_constellation_reelle(corps_celeste, date_cible_dt):
+    """Constellation réelle IAU dans laquelle se trouve un corps céleste
+    (Lune ou Soleil) à une date/heure donnée."""
+    t_skyfield = ts.from_datetime(date_cible_dt)
+    astrometric = earth.at(t_skyfield).observe(corps_celeste)
+    code = constellation_at(astrometric)
+    return NOMS_CONSTELLATIONS.get(code, code)
+
 def calculer_infos_lunaires(date_cible_dt):
     t_skyfield = ts.from_datetime(date_cible_dt)
 
-    astrometric = earth.at(t_skyfield).observe(moon)
-    constellation_code = constellation_at(astrometric)
-    const_traduite = NOMS_CONSTELLATIONS.get(constellation_code, constellation_code)
+    const_lune = calculer_constellation_reelle(moon, date_cible_dt)
 
     angle_phase = almanac.moon_phase(eph, t_skyfield).degrees
     phase_nom = nom_phase_lunaire(angle_phase)
     illumination = (1 - math.cos(math.radians(angle_phase))) / 2 * 100
 
     return {
-        "constellation": const_traduite,
+        "constellation": const_lune,
         "phase_angle": angle_phase,
         "phase_nom": phase_nom,
         "illumination": illumination
     }
+
+def prochaines_phases_lunaires(date_cible_dt, jours_recherche=45):
+    """Cherche la prochaine Nouvelle Lune (phase 0) et Pleine Lune (phase 2)
+    dans les `jours_recherche` jours suivant la date donnée, avec la
+    constellation réelle où se trouvera la Lune à ce moment-là."""
+    t0 = ts.from_datetime(date_cible_dt)
+    t1 = ts.from_datetime(date_cible_dt + timedelta(days=jours_recherche))
+    times, phases = almanac.find_discrete(t0, t1, almanac.moon_phases(eph))
+
+    prochaine_nl, prochaine_pl = None, None
+    for t, phase in zip(times, phases):
+        dt_phase = t.astimezone(TZ_LOCAL)
+        if int(phase) == 0 and prochaine_nl is None:
+            prochaine_nl = dt_phase
+        if int(phase) == 2 and prochaine_pl is None:
+            prochaine_pl = dt_phase
+        if prochaine_nl and prochaine_pl:
+            break
+
+    const_nl = calculer_constellation_reelle(moon, prochaine_nl) if prochaine_nl else None
+    const_pl = calculer_constellation_reelle(moon, prochaine_pl) if prochaine_pl else None
+
+    return prochaine_nl, const_nl, prochaine_pl, const_pl
 
 # ---------------------------------------------------------------
 # INTERFACE STREAMLIT
@@ -178,71 +252,55 @@ if utiliser_maintenant:
 else:
     maintenant = datetime.combine(date_selectionnee, heure_selectionnee, tzinfo=TZ_LOCAL)
 
-heures, nom_jour, planete_regente, lever, coucher = calculer_heures_planetaires(date_selectionnee)
+heures, nom_jour, planete_regente, lever, coucher, duree_jour, duree_nuit = calculer_heures_planetaires(date_selectionnee)
+infos_lune = calculer_infos_lunaires(maintenant)
+prochaine_nl, const_nl, prochaine_pl, const_pl = prochaines_phases_lunaires(maintenant)
+const_soleil = calculer_constellation_reelle(sun_obj, maintenant)
 
-st.subheader(f"{nom_jour} — jour régi par {planete_regente} {SYMBOLES_PLANETES[planete_regente]}")
-st.write(f"Lever du soleil : **{formater_heure(lever)}** — Coucher du soleil : **{formater_heure(coucher)}**")
+# --- Section : État astronomique de la Lune ---
+titre_section("ÉTAT ASTRONOMIQUE DE LA LUNE", "🌙")
+ligne_info("🌌", "Constellation réelle (IAU)", infos_lune["constellation"], "v-green")
+ligne_info("☾", "Phase actuelle", infos_lune["phase_nom"], "v-cyan")
+if prochaine_nl:
+    ligne_info("🌑", "Prochaine Nouvelle Lune", f"{prochaine_nl.strftime('%d/%m/%Y à %H:%M')}  —  en {const_nl}", "v-pink")
+if prochaine_pl:
+    ligne_info("🌕", "Prochaine Pleine Lune", f"{prochaine_pl.strftime('%d/%m/%Y à %H:%M')}  —  en {const_pl}", "v-pink")
+
+st.write("")
+
+# --- Section : Éphémérides solaires ---
+titre_section("ÉPHÉMÉRIDES SOLAIRES", "✨")
+ligne_info("📅", "Jour", f"{nom_jour}  |  Maître du jour : {planete_regente} {SYMBOLES_PLANETES[planete_regente]}", "v-green")
+ligne_info("🌌", "Constellation réelle (IAU)", const_soleil, "v-green")
+ligne_info("🌅", "Lever", formater_heure(lever), "v-yellow")
+ligne_info("🌇", "Coucher", formater_heure(coucher), "v-yellow")
+ligne_info("⏱️", "Heure diurne", formater_duree(duree_jour), "v-cyan")
+ligne_info("🕯️", "Heure nocturne", formater_duree(duree_nuit), "v-cyan")
+
+st.write("")
+
+# --- Section : Heures planétaires ---
+titre_section(f"HEURES PLANÉTAIRES ({date_selectionnee.strftime('%d/%m/%Y')})", "🪐")
 
 heure_actuelle = heure_planetaire_courante(heures, maintenant)
-if heure_actuelle:
-    st.success(
-        f"Heure planétaire en cours : **{heure_actuelle['planete']} "
-        f"{SYMBOLES_PLANETES[heure_actuelle['planete']]}** "
-        f"({heure_actuelle['type']} n°{heure_actuelle['numero']}, "
-        f"jusqu'à {formater_heure(heure_actuelle['fin'])})"
-    )
-else:
-    st.info("Aucune heure planétaire en cours pour cette date (date passée ou future).")
 
-st.divider()
-st.subheader("Tableau des 24 heures planétaires")
+df = pd.DataFrame([{
+    "N°": h["numero"],
+    "Type": h["type"],
+    "Plage Horaire": f"{formater_heure(h['debut'])} - {formater_heure(h['fin'])}",
+    "Régent Planétaire": f"{SYMBOLES_PLANETES[h['planete']]}  {h['planete']}",
+    "Actuel": "✅" if h is heure_actuelle else ""
+} for h in heures])
 
-def construire_dataframe(heures_liste):
-    return pd.DataFrame([{
-        "N°": h["numero"],
-        "Planète": f"{SYMBOLES_PLANETES[h['planete']]}  {h['planete']}",
-        "Début": formater_heure(h["debut"]),
-        "Fin": formater_heure(h["fin"]),
-        "Durée": formater_duree(h["duree"]),
-    } for h in heures_liste])
+mask = pd.Series([h is heure_actuelle for h in heures])
 
-def surligner_heure_active(heures_liste, maintenant):
-    mask = pd.Series([h["debut"] <= maintenant < h["fin"] for h in heures_liste])
+def style_ligne(row):
+    if mask[row.name]:
+        return ["background-color: #1b3a2b; color: #39d353; font-weight: 700"] * len(row)
+    return [""] * len(row)
 
-    def style_ligne(row):
-        if mask[row.name]:
-            return ["background-color: #2e7d32; color: white; font-weight: bold"] * len(row)
-        return [""] * len(row)
-
-    return style_ligne
-
-heures_jour = [h for h in heures if h["type"] == "Jour"]
-heures_nuit = [h for h in heures if h["type"] == "Nuit"]
-
-onglet_jour, onglet_nuit = st.tabs(["☀️ Heures de jour", "🌙 Heures de nuit"])
-
-with onglet_jour:
-    df_jour = construire_dataframe(heures_jour)
-    style_jour = surligner_heure_active(heures_jour, maintenant)
-    st.dataframe(
-        df_jour.style.apply(style_jour, axis=1),
-        hide_index=True,
-        width='stretch'
-    )
-
-with onglet_nuit:
-    df_nuit = construire_dataframe(heures_nuit)
-    style_nuit = surligner_heure_active(heures_nuit, maintenant)
-    st.dataframe(
-        df_nuit.style.apply(style_nuit, axis=1),
-        hide_index=True,
-        width='stretch'
-    )
-
-st.divider()
-st.subheader("🌙 Informations lunaires")
-
-infos_lune = calculer_infos_lunaires(maintenant)
-st.write(f"Constellation actuelle de la Lune : **{infos_lune['constellation']}**")
-st.write(f"Phase actuelle : **{infos_lune['phase_nom']}** ({infos_lune['phase_angle']:.1f}°)")
-st.write(f"Illumination : **{infos_lune['illumination']:.1f}%**")
+st.dataframe(
+    df.style.apply(style_ligne, axis=1),
+    hide_index=True,
+    width='stretch'
+)
