@@ -14,7 +14,7 @@ from skyfield import almanac
 # ---------------------------------------------------------------
 st.set_page_config(
     page_title="Calculateur d'Heures Planétaires & Lune",
-    page_icon="🔮",
+    page_icon=None,
     layout="centered",
     initial_sidebar_state="expanded"
 )
@@ -27,7 +27,7 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
 
 .stApp {
-    background-color: #0a0e14;
+    background-color: #2e2e32;
     font-family: 'JetBrains Mono', 'Courier New', monospace;
 }
 .section-title {
@@ -39,16 +39,16 @@ st.markdown("""
 }
 .section-line {
     border: none;
-    border-top: 1px solid #2a2f3a;
+    border-top: 1px solid #55565c;
     margin: 4px 0 14px 0;
 }
 .info-row {
-    color: #c9d1d9;
+    color: #e6e6e6;
     font-size: 0.95rem;
     margin: 3px 0;
     line-height: 1.5;
 }
-.branch { color: #3a3f4a; margin-right: 6px; }
+.branch { color: #77787f; margin-right: 6px; }
 .v-green { color: #39d353; font-weight: 700; }
 .v-pink  { color: #ff5fd0; font-weight: 700; }
 .v-cyan  { color: #56d4dd; font-weight: 700; }
@@ -56,15 +56,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def titre_section(titre, icone=""):
+def titre_section(titre):
     st.markdown(
-        f'<div class="section-title">{icone} {titre}</div><hr class="section-line">',
+        f'<div class="section-title">{titre}</div><hr class="section-line">',
         unsafe_allow_html=True
     )
 
-def ligne_info(icone, label, valeur, couleur="v-green"):
+def ligne_info(label, valeur, couleur="v-green"):
     st.markdown(
-        f'<div class="info-row"><span class="branch">│</span>{icone} {label} : '
+        f'<div class="info-row"><span class="branch">│</span>{label} : '
         f'<span class="{couleur}">{valeur}</span></div>',
         unsafe_allow_html=True
     )
@@ -114,7 +114,7 @@ NOMS_CONSTELLATIONS = {
     "Cnc": "Cancer ♋", "Leo": "Lion ♌", "Vir": "Vierge ♍",
     "Lib": "Balance ♎", "Sco": "Scorpion ♏", "Oph": "Serpentaire ⛎",
     "Sgr": "Sagittaire ♐", "Cap": "Capricorne ♑", "Aqr": "Verseau ♒",
-    "Psc": "Poissons ♓", "Cet": "Baleine 🐳", "Ori": "Orion 🏹"
+    "Psc": "Poissons ♓", "Cet": "Baleine", "Ori": "Orion"
 }
 
 def formater_duree(td):
@@ -241,7 +241,7 @@ def prochaines_phases_lunaires(date_cible_dt, jours_recherche=45):
 # ---------------------------------------------------------------
 # INTERFACE STREAMLIT
 # ---------------------------------------------------------------
-st.title("🔮 Heures Planétaires & Lune")
+st.title("Heures Planétaires & Lune")
 
 date_selectionnee = st.sidebar.date_input("Date", value=date.today())
 heure_selectionnee = st.sidebar.time_input("Heure", value=datetime.now(TZ_LOCAL).time())
@@ -258,29 +258,29 @@ prochaine_nl, const_nl, prochaine_pl, const_pl = prochaines_phases_lunaires(main
 const_soleil = calculer_constellation_reelle(sun_obj, maintenant)
 
 # --- Section : État astronomique de la Lune ---
-titre_section("ÉTAT ASTRONOMIQUE DE LA LUNE", "🌙")
-ligne_info("🌌", "Constellation réelle (IAU)", infos_lune["constellation"], "v-green")
-ligne_info("☾", "Phase actuelle", infos_lune["phase_nom"], "v-cyan")
+titre_section("ÉTAT ASTRONOMIQUE DE LA LUNE")
+ligne_info("Constellation réelle (IAU)", infos_lune["constellation"], "v-green")
+ligne_info("Phase actuelle", infos_lune["phase_nom"], "v-cyan")
 if prochaine_nl:
-    ligne_info("🌑", "Prochaine Nouvelle Lune", f"{prochaine_nl.strftime('%d/%m/%Y à %H:%M')}  —  en {const_nl}", "v-pink")
+    ligne_info("Prochaine Nouvelle Lune", f"{prochaine_nl.strftime('%d/%m/%Y à %H:%M')}  —  en {const_nl}", "v-pink")
 if prochaine_pl:
-    ligne_info("🌕", "Prochaine Pleine Lune", f"{prochaine_pl.strftime('%d/%m/%Y à %H:%M')}  —  en {const_pl}", "v-pink")
+    ligne_info("Prochaine Pleine Lune", f"{prochaine_pl.strftime('%d/%m/%Y à %H:%M')}  —  en {const_pl}", "v-pink")
 
 st.write("")
 
 # --- Section : Éphémérides solaires ---
-titre_section("ÉPHÉMÉRIDES SOLAIRES", "✨")
-ligne_info("📅", "Jour", f"{nom_jour}  |  Maître du jour : {planete_regente} {SYMBOLES_PLANETES[planete_regente]}", "v-green")
-ligne_info("🌌", "Constellation réelle (IAU)", const_soleil, "v-green")
-ligne_info("🌅", "Lever", formater_heure(lever), "v-yellow")
-ligne_info("🌇", "Coucher", formater_heure(coucher), "v-yellow")
-ligne_info("⏱️", "Heure diurne", formater_duree(duree_jour), "v-cyan")
-ligne_info("🕯️", "Heure nocturne", formater_duree(duree_nuit), "v-cyan")
+titre_section("ÉPHÉMÉRIDES SOLAIRES")
+ligne_info("Jour", f"{nom_jour}  |  Maître du jour : {planete_regente} {SYMBOLES_PLANETES[planete_regente]}", "v-green")
+ligne_info("Constellation réelle (IAU)", const_soleil, "v-green")
+ligne_info("Lever", formater_heure(lever), "v-yellow")
+ligne_info("Coucher", formater_heure(coucher), "v-yellow")
+ligne_info("Heure diurne", formater_duree(duree_jour), "v-cyan")
+ligne_info("Heure nocturne", formater_duree(duree_nuit), "v-cyan")
 
 st.write("")
 
 # --- Section : Heures planétaires ---
-titre_section(f"HEURES PLANÉTAIRES ({date_selectionnee.strftime('%d/%m/%Y')})", "🪐")
+titre_section(f"HEURES PLANÉTAIRES ({date_selectionnee.strftime('%d/%m/%Y')})")
 
 heure_actuelle = heure_planetaire_courante(heures, maintenant)
 
@@ -289,7 +289,7 @@ df = pd.DataFrame([{
     "Type": h["type"],
     "Plage Horaire": f"{formater_heure(h['debut'])} - {formater_heure(h['fin'])}",
     "Régent Planétaire": f"{SYMBOLES_PLANETES[h['planete']]}  {h['planete']}",
-    "Actuel": "✅" if h is heure_actuelle else ""
+    "Actuel": "Oui" if h is heure_actuelle else ""
 } for h in heures])
 
 mask = pd.Series([h is heure_actuelle for h in heures])
