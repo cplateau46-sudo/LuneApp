@@ -1,1 +1,3 @@
-stream'nastral'nskyfield
+streamlit
+astral
+skyfield
