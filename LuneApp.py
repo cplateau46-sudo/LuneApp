@@ -1,5 +1,6 @@
 import math
 import pandas as pd
+import requests
 import streamlit as st
 from datetime import datetime, timedelta, date
 from zoneinfo import ZoneInfo
@@ -85,12 +86,11 @@ earth, moon, sun_obj = eph['earth'], eph['moon'], eph['sun']
 # ---------------------------------------------------------------
 # CONSTANTES & CONFIGURATION LOCALISATION
 # ---------------------------------------------------------------
-LATITUDE = 43.6045   # Toulouse / Lagardelle
-LONGITUDE = 1.4442
+LATITUDE_DEFAUT = 43.6045   # Toulouse (utilisée si aucune ville saisie ou géocodage impossible)
+LONGITUDE_DEFAUT = 1.4442
+VILLE_DEFAUT = "Toulouse"
 TZ_NAME = "Europe/Paris"
 TZ_LOCAL = ZoneInfo(TZ_NAME)
-
-lieu = LocationInfo("Local", "France", TZ_NAME, LATITUDE, LONGITUDE)
 
 ORDRE_CHALDEEN = ["Saturne", "Jupiter", "Mars", "Soleil", "Vénus", "Mercure", "Lune"]
 
@@ -125,6 +125,28 @@ def formater_duree(td):
 
 def formater_heure(dt):
     return dt.astimezone(TZ_LOCAL).strftime("%H:%M")
+
+@st.cache_data(ttl=86400)
+def geocoder_ville(nom_ville):
+    """Convertit un nom de ville en coordonnées via Nominatim (OpenStreetMap).
+    Retourne (latitude, longitude, nom_affiche, trouve: bool)."""
+    if not nom_ville or not nom_ville.strip():
+        return LATITUDE_DEFAUT, LONGITUDE_DEFAUT, VILLE_DEFAUT, False
+    try:
+        reponse = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": nom_ville.strip(), "format": "json", "limit": 1},
+            headers={"User-Agent": "HeuresPlanetaires-App/1.0"},
+            timeout=6
+        )
+        reponse.raise_for_status()
+        resultats = reponse.json()
+        if resultats:
+            r = resultats[0]
+            return float(r["lat"]), float(r["lon"]), r["display_name"], True
+    except Exception:
+        pass
+    return LATITUDE_DEFAUT, LONGITUDE_DEFAUT, VILLE_DEFAUT, False
 
 # ---------------------------------------------------------------
 # CALCUL DES HEURES PLANÉTAIRES
@@ -242,6 +264,15 @@ def prochaines_phases_lunaires(date_cible_dt, jours_recherche=45):
 # INTERFACE STREAMLIT
 # ---------------------------------------------------------------
 st.title("Heures Planétaires & Lune")
+
+ville_saisie = st.sidebar.text_input("Ta ville", value=VILLE_DEFAUT)
+lat_util, lon_util, nom_lieu_trouve, ville_trouvee = geocoder_ville(ville_saisie)
+lieu = LocationInfo("Local", "France", TZ_NAME, lat_util, lon_util)
+
+if ville_trouvee:
+    st.sidebar.caption(f"Localisation : {nom_lieu_trouve}")
+else:
+    st.sidebar.caption(f"Ville introuvable, localisation par défaut : {VILLE_DEFAUT}")
 
 date_selectionnee = st.sidebar.date_input("Date", value=date.today())
 heure_selectionnee = st.sidebar.time_input("Heure", value=datetime.now(TZ_LOCAL).time())
