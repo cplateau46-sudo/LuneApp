@@ -31,7 +31,7 @@ st.markdown("""
     font-family: 'JetBrains Mono', 'Courier New', monospace;
 }
 .section-title {
-    color: #ff5fd0;
+    color: #1a2238;
     font-weight: 700;
     font-size: 1.05rem;
     letter-spacing: 0.5px;
@@ -39,20 +39,20 @@ st.markdown("""
 }
 .section-line {
     border: none;
-    border-top: 1px solid #55565c;
+    border-top: 1px solid #c7c7b8;
     margin: 4px 0 14px 0;
 }
 .info-row {
-    color: #e6e6e6;
+    color: #2b2d3a;
     font-size: 0.95rem;
     margin: 3px 0;
     line-height: 1.5;
 }
-.branch { color: #77787f; margin-right: 6px; }
-.v-green { color: #39d353; font-weight: 700; }
-.v-pink  { color: #ff5fd0; font-weight: 700; }
-.v-cyan  { color: #56d4dd; font-weight: 700; }
-.v-yellow{ color: #e3b341; font-weight: 700; }
+.branch { color: #9a9a8c; margin-right: 6px; }
+.v-green { color: #2f4858; font-weight: 700; }
+.v-pink  { color: #1a2238; font-weight: 700; }
+.v-cyan  { color: #3d5a73; font-weight: 700; }
+.v-yellow{ color: #52504a; font-weight: 700; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -296,7 +296,7 @@ mask = pd.Series([h is heure_actuelle for h in heures])
 
 def style_ligne(row):
     if mask[row.name]:
-        return ["background-color: #1b3a2b; color: #39d353; font-weight: 700"] * len(row)
+        return ["background-color: #eaeadb; color: #1a2238; font-weight: 700"] * len(row)
     return [""] * len(row)
 
 st.dataframe(
