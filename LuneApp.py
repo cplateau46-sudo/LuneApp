@@ -296,11 +296,12 @@ mask = pd.Series([h is heure_actuelle for h in heures])
 
 def style_ligne(row):
     if mask[row.name]:
-        return ["background-color: #eaeadb; color: #1a2238; font-weight: 700"] * len(row)
+        return ["background-color: #d8dce6; color: #1a2238; font-weight: 700"] * len(row)
     return [""] * len(row)
 
 st.dataframe(
     df.style.apply(style_ligne, axis=1),
     hide_index=True,
-    width='stretch'
+    width='stretch',
+    height=(len(df) + 1) * 35 + 3
 )
