@@ -367,7 +367,12 @@ st.write("")
 
 # --- Section : Éphémérides solaires ---
 titre_section("ÉPHÉMÉRIDES SOLAIRES")
-ligne_info("Jour", f"{nom_jour}  |  Maître du jour : {planete_regente} {SYMBOLES_PLANETES[planete_regente]}", "v-green")
+ligne_info(
+    "Jour",
+    f"{nom_jour}  |  Maître du jour : {planete_regente} {SYMBOLES_PLANETES[planete_regente]}"
+    f"  |  {CORRESPONDANCES_PLANETES[planete_regente]['intention']}",
+    "v-green"
+)
 ligne_info("Constellation réelle (IAU)", const_soleil, "v-green")
 ligne_info("Signe zodiacal tropical", signe_soleil, "v-green")
 ligne_info("Lever", formater_heure(lever), "v-yellow")
@@ -499,7 +504,8 @@ else:
     ligne_heure = "Heure planétaire en cours : hors plage calculée"
 
 texte_partage = (
-    f"{nom_jour} {date_selectionnee.strftime('%d/%m/%Y')} — Maître du jour : {planete_regente}\n\n"
+    f"{nom_jour} {date_selectionnee.strftime('%d/%m/%Y')} — Maître du jour : {planete_regente}"
+    f" ({CORRESPONDANCES_PLANETES[planete_regente]['intention']})\n\n"
     f"{ligne_heure}\n\n"
     f"Lune en {infos_lune['constellation']} ({signe_lune}) — {infos_lune['phase_nom']}\n"
     f"Soleil en {const_soleil} ({signe_soleil})"
