@@ -3,3 +3,4 @@ astral
 skyfield
 requests
 pandas
+timezonefinder
