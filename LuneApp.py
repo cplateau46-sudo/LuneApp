@@ -134,6 +134,16 @@ CORRESPONDANCES_PLANETES = {
     "Lune":    {"couleur": "Blanc, argent", "metal": "Argent", "intention": "Intuition, réceptivité, émotion"},
 }
 
+INTENTIONS_PLANETES = {
+    "Amour, harmonie, beauté": "Vénus",
+    "Argent, abondance, expansion": "Jupiter",
+    "Protection, ancrage, structure": "Saturne",
+    "Action, courage, rupture": "Mars",
+    "Communication, apprentissage": "Mercure",
+    "Intuition, émotion, réceptivité": "Lune",
+    "Vitalité, affirmation, rayonnement": "Soleil",
+}
+
 def formater_duree(td):
     total_seconds = int(td.total_seconds())
     minutes = total_seconds // 60
@@ -210,6 +220,18 @@ def heure_planetaire_courante(heures, maintenant):
         if h["debut"] <= maintenant < h["fin"]:
             return h
     return None
+
+def prochaine_heure_planete(planete, depart_dt, jours_max=7):
+    """Cherche la prochaine occurrence d'une planète régente à partir de
+    `depart_dt`, en balayant jusqu'à `jours_max` jours si besoin.
+    Retourne (heure_dict, date_du_jour) ou (None, None)."""
+    for offset in range(jours_max):
+        jour_test = depart_dt.date() + timedelta(days=offset)
+        heures_test, *_ = calculer_heures_planetaires(jour_test)
+        for h in heures_test:
+            if h["planete"] == planete and h["debut"] >= depart_dt:
+                return h, jour_test
+    return None, None
 
 # ---------------------------------------------------------------
 # CALCUL DES INFOS LUNAIRES
@@ -372,18 +394,51 @@ else:
 
 planete_filtre = st.selectbox("Prochaine heure de quelle planète ?", ["—"] + ORDRE_CHALDEEN)
 if planete_filtre != "—":
-    prochaine = next((h for h in heures if h["planete"] == planete_filtre and h["debut"] >= maintenant), None)
+    prochaine, jour_trouve = prochaine_heure_planete(planete_filtre, maintenant)
     if prochaine:
         attente = prochaine["debut"] - maintenant
-        heures_att, reste = divmod(int(attente.total_seconds()), 3600)
+        jours_att, reste = divmod(int(attente.total_seconds()), 86400)
+        heures_att, reste = divmod(reste, 3600)
         minutes_att = reste // 60
+        delai = (f"{jours_att}j " if jours_att else "") + f"{heures_att}h{minutes_att:02d}"
         ligne_info(
             f"Prochaine heure de {planete_filtre} {SYMBOLES_PLANETES[planete_filtre]}",
-            f"{formater_heure(prochaine['debut'])} - {formater_heure(prochaine['fin'])}  ({prochaine['type']}, dans {heures_att}h{minutes_att:02d})",
+            f"{jour_trouve.strftime('%d/%m')} — {formater_heure(prochaine['debut'])} - {formater_heure(prochaine['fin'])}"
+            f"  ({prochaine['type']}, dans {delai})",
             "v-pink"
         )
     else:
-        ligne_info(f"Prochaine heure de {planete_filtre}", "aucune restante pour cette date, change de date ou de ville", "v-yellow")
+        ligne_info(f"Prochaine heure de {planete_filtre}", "aucune dans les 7 prochains jours", "v-yellow")
+
+intention_filtre = st.selectbox("Ou : je cherche une heure pour...", ["—"] + list(INTENTIONS_PLANETES.keys()))
+if intention_filtre != "—":
+    planete_associee = INTENTIONS_PLANETES[intention_filtre]
+    prochaine, jour_trouve = prochaine_heure_planete(planete_associee, maintenant)
+    if prochaine:
+        attente = prochaine["debut"] - maintenant
+        jours_att, reste = divmod(int(attente.total_seconds()), 86400)
+        heures_att, reste = divmod(reste, 3600)
+        minutes_att = reste // 60
+        delai = (f"{jours_att}j " if jours_att else "") + f"{heures_att}h{minutes_att:02d}"
+        ligne_info(
+            f"Pour {intention_filtre.lower()} — {planete_associee} {SYMBOLES_PLANETES[planete_associee]}",
+            f"{jour_trouve.strftime('%d/%m')} — {formater_heure(prochaine['debut'])} - {formater_heure(prochaine['fin'])}"
+            f"  ({prochaine['type']}, dans {delai})",
+            "v-pink"
+        )
+    else:
+        ligne_info(f"Pour {intention_filtre.lower()}", "aucune heure adaptée dans les 7 prochains jours", "v-yellow")
+
+with st.expander("C'est quoi une heure planétaire ?"):
+    st.markdown(
+        "Le jour et la nuit sont chacun divisés en 12 heures planétaires, dont la durée "
+        "varie selon la saison (plus longues le jour en été, plus longues la nuit en hiver). "
+        "Chaque heure est régie par une planète différente, selon un ordre fixe qui tourne "
+        "en continu depuis l'Antiquité (l'ordre chaldéen). La première heure du jour porte "
+        "toujours la planète qui gouverne le jour de la semaine — d'où \"lundi\" pour Lune, "
+        "\"mardi\" pour Mars, etc. Se caler sur l'heure d'une planète, c'est agir en phase "
+        "avec la qualité qu'elle représente plutôt qu'à contre-courant."
+    )
 
 st.write("")
 
@@ -427,3 +482,28 @@ with col_nuit:
         width='stretch',
         height=(len(df_nuit) + 1) * 35 + 3
     )
+
+st.write("")
+
+# --- Section : texte prêt à partager ---
+titre_section("TEXTE PRÊT À PARTAGER")
+
+if heure_actuelle:
+    corr_actuelle = CORRESPONDANCES_PLANETES[heure_actuelle["planete"]]
+    ligne_heure = (
+        f"Heure planétaire en cours : {heure_actuelle['planete']} "
+        f"({formater_heure(heure_actuelle['debut'])}-{formater_heure(heure_actuelle['fin'])})\n"
+        f"Intention : {corr_actuelle['intention']}"
+    )
+else:
+    ligne_heure = "Heure planétaire en cours : hors plage calculée"
+
+texte_partage = (
+    f"{nom_jour} {date_selectionnee.strftime('%d/%m/%Y')} — Maître du jour : {planete_regente}\n\n"
+    f"{ligne_heure}\n\n"
+    f"Lune en {infos_lune['constellation']} ({signe_lune}) — {infos_lune['phase_nom']}\n"
+    f"Soleil en {const_soleil} ({signe_soleil})"
+)
+
+st.code(texte_partage, language=None)
+st.caption("Clique sur l'icône en haut à droite du bloc pour copier le texte.")
