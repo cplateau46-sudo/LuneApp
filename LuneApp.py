@@ -316,8 +316,7 @@ def prochaines_phases_lunaires(date_cible_dt, jours_recherche=45):
 # INTERFACE STREAMLIT
 # ---------------------------------------------------------------
 st.title("Heures Planétaires et Lune")
-st.caption("Position des astres dans le ciel réel")
-st.caption("Donc les 7 planètes visibles")
+st.caption("Position des astres dans le ciel réel. Donc les 7 planètes visibles")
 
 ville_saisie = st.sidebar.text_input("Ta ville", value=VILLE_DEFAUT)
 lat_util, lon_util, nom_lieu_trouve, ville_trouvee = geocoder_ville(ville_saisie)
