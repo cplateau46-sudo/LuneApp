@@ -293,7 +293,8 @@ def prochaines_phases_lunaires(date_cible_dt, jours_recherche=45):
 # ---------------------------------------------------------------
 # INTERFACE STREAMLIT
 # ---------------------------------------------------------------
-st.title("Heures Planétaires & Lune")
+st.title("Heures Planétaires et Lune")
+st.caption("Position des astres dans le ciel réel")
 
 ville_saisie = st.sidebar.text_input("Ta ville", value=VILLE_DEFAUT)
 lat_util, lon_util, nom_lieu_trouve, ville_trouvee = geocoder_ville(ville_saisie)
