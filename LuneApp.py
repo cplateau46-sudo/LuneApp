@@ -293,7 +293,7 @@ def prochaines_phases_lunaires(date_cible_dt, jours_recherche=45):
 # ---------------------------------------------------------------
 # INTERFACE STREAMLIT
 # ---------------------------------------------------------------
-st.title("Heures Planétaires et Lune")
+st.title("Heures Planétaires & Lune")
 st.caption("Position des astres dans le ciel réel")
 
 ville_saisie = st.sidebar.text_input("Ta ville", value=VILLE_DEFAUT)
@@ -387,24 +387,43 @@ if planete_filtre != "—":
 
 st.write("")
 
-df = pd.DataFrame([{
-    "N°": h["numero"],
-    "Type": h["type"],
-    "Plage Horaire": f"{formater_heure(h['debut'])} - {formater_heure(h['fin'])}",
-    "Régent Planétaire": f"{SYMBOLES_PLANETES[h['planete']]}  {h['planete']}",
-    "Actuel": "Oui" if h is heure_actuelle else ""
-} for h in heures])
+def construire_dataframe(heures_liste, heure_active):
+    return pd.DataFrame([{
+        "N°": h["numero"],
+        "Plage Horaire": f"{formater_heure(h['debut'])} - {formater_heure(h['fin'])}",
+        "Régent Planétaire": f"{SYMBOLES_PLANETES[h['planete']]}  {h['planete']}",
+        "Actuel": "Oui" if h is heure_active else ""
+    } for h in heures_liste])
 
-mask = pd.Series([h is heure_actuelle for h in heures])
+def styliser(heures_liste, heure_active):
+    mask = pd.Series([h is heure_active for h in heures_liste])
+    def style_ligne(row):
+        if mask[row.name]:
+            return ["background-color: #d8dce6; color: #1a2238; font-weight: 700"] * len(row)
+        return [""] * len(row)
+    return style_ligne
 
-def style_ligne(row):
-    if mask[row.name]:
-        return ["background-color: #d8dce6; color: #1a2238; font-weight: 700"] * len(row)
-    return [""] * len(row)
+heures_jour = [h for h in heures if h["type"] == "Diurne"]
+heures_nuit = [h for h in heures if h["type"] == "Nocturne"]
 
-st.dataframe(
-    df.style.apply(style_ligne, axis=1),
-    hide_index=True,
-    width='stretch',
-    height=(len(df) + 1) * 35 + 3
-)
+col_jour, col_nuit = st.columns(2)
+
+with col_jour:
+    st.markdown('<div class="info-row"><b>Diurnes</b></div>', unsafe_allow_html=True)
+    df_jour = construire_dataframe(heures_jour, heure_actuelle)
+    st.dataframe(
+        df_jour.style.apply(styliser(heures_jour, heure_actuelle), axis=1),
+        hide_index=True,
+        width='stretch',
+        height=(len(df_jour) + 1) * 35 + 3
+    )
+
+with col_nuit:
+    st.markdown('<div class="info-row"><b>Nocturnes</b></div>', unsafe_allow_html=True)
+    df_nuit = construire_dataframe(heures_nuit, heure_actuelle)
+    st.dataframe(
+        df_nuit.style.apply(styliser(heures_nuit, heure_actuelle), axis=1),
+        hide_index=True,
+        width='stretch',
+        height=(len(df_nuit) + 1) * 35 + 3
+    )
