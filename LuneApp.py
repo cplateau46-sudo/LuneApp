@@ -17,7 +17,7 @@ st.set_page_config(
     page_title="Calculateur d'Heures Planétaires & Lune",
     page_icon=None,
     layout="centered",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
 # ---------------------------------------------------------------
@@ -115,6 +115,23 @@ NOMS_CONSTELLATIONS = {
     "Lib": "Balance ♎", "Sco": "Scorpion ♏", "Oph": "Serpentaire ⛎",
     "Sgr": "Sagittaire ♐", "Cap": "Capricorne ♑", "Aqr": "Verseau ♒",
     "Psc": "Poissons ♓", "Cet": "Baleine", "Ori": "Orion"
+}
+
+ZODIAQUE_TROPICAL = [
+    (0, "Bélier ♈"), (30, "Taureau ♉"), (60, "Gémeaux ♊"), (90, "Cancer ♋"),
+    (120, "Lion ♌"), (150, "Vierge ♍"), (180, "Balance ♎"), (210, "Scorpion ♏"),
+    (240, "Sagittaire ♐"), (270, "Capricorne ♑"), (300, "Verseau ♒"), (330, "Poissons ♓")
+]
+
+# Correspondances traditionnelles (astrologie occidentale classique)
+CORRESPONDANCES_PLANETES = {
+    "Saturne": {"couleur": "Noir, gris foncé", "metal": "Plomb", "intention": "Structure, limites, discipline, ancrage"},
+    "Jupiter": {"couleur": "Bleu roi, violet", "metal": "Étain", "intention": "Expansion, abondance, protection"},
+    "Mars":    {"couleur": "Rouge", "metal": "Fer", "intention": "Action, courage, rupture"},
+    "Soleil":  {"couleur": "Or, jaune", "metal": "Or", "intention": "Vitalité, rayonnement, affirmation"},
+    "Vénus":   {"couleur": "Vert, rose", "metal": "Cuivre", "intention": "Amour, harmonie, beauté"},
+    "Mercure": {"couleur": "Orange, multicolore", "metal": "Mercure (vif-argent)", "intention": "Communication, échange, apprentissage"},
+    "Lune":    {"couleur": "Blanc, argent", "metal": "Argent", "intention": "Intuition, réceptivité, émotion"},
 }
 
 def formater_duree(td):
@@ -221,6 +238,19 @@ def calculer_constellation_reelle(corps_celeste, date_cible_dt):
     code = constellation_at(astrometric)
     return NOMS_CONSTELLATIONS.get(code, code)
 
+def calculer_signe_tropical(corps_celeste, date_cible_dt):
+    """Signe du zodiaque tropical (12 divisions de 30° depuis l'équinoxe),
+    distinct de la constellation réelle IAU."""
+    t_skyfield = ts.from_datetime(date_cible_dt)
+    astrometric = earth.at(t_skyfield).observe(corps_celeste).apparent()
+    _, lon, _ = astrometric.ecliptic_latlon(epoch='date')
+    degre = lon.degrees % 360
+    signe = ZODIAQUE_TROPICAL[0][1]
+    for seuil, nom in ZODIAQUE_TROPICAL:
+        if degre >= seuil:
+            signe = nom
+    return signe
+
 def calculer_infos_lunaires(date_cible_dt):
     t_skyfield = ts.from_datetime(date_cible_dt)
 
@@ -274,7 +304,17 @@ if ville_trouvee:
 else:
     st.sidebar.caption(f"Ville introuvable, localisation par défaut : {VILLE_DEFAUT}")
 
-date_selectionnee = st.sidebar.date_input("Date", value=date.today())
+date_defaut = date.today()
+if "date" in st.query_params:
+    try:
+        date_defaut = datetime.strptime(st.query_params["date"], "%Y-%m-%d").date()
+    except ValueError:
+        pass
+
+date_selectionnee = st.sidebar.date_input("Date", value=date_defaut)
+st.query_params["date"] = date_selectionnee.strftime("%Y-%m-%d")
+st.sidebar.caption(f"Lien partageable : ajoute `?date={date_selectionnee.strftime('%Y-%m-%d')}` à la fin de l'URL de l'app")
+
 heure_selectionnee = st.sidebar.time_input("Heure", value=datetime.now(TZ_LOCAL).time())
 utiliser_maintenant = st.sidebar.checkbox("Utiliser l'heure actuelle", value=True)
 
@@ -287,10 +327,13 @@ heures, nom_jour, planete_regente, lever, coucher, duree_jour, duree_nuit = calc
 infos_lune = calculer_infos_lunaires(maintenant)
 prochaine_nl, const_nl, prochaine_pl, const_pl = prochaines_phases_lunaires(maintenant)
 const_soleil = calculer_constellation_reelle(sun_obj, maintenant)
+signe_lune = calculer_signe_tropical(moon, maintenant)
+signe_soleil = calculer_signe_tropical(sun_obj, maintenant)
 
 # --- Section : État astronomique de la Lune ---
 titre_section("ÉTAT ASTRONOMIQUE DE LA LUNE")
 ligne_info("Constellation réelle (IAU)", infos_lune["constellation"], "v-green")
+ligne_info("Signe zodiacal tropical", signe_lune, "v-green")
 ligne_info("Phase actuelle", infos_lune["phase_nom"], "v-cyan")
 if prochaine_nl:
     ligne_info("Prochaine Nouvelle Lune", f"{prochaine_nl.strftime('%d/%m/%Y à %H:%M')}  —  en {const_nl}", "v-pink")
@@ -303,6 +346,7 @@ st.write("")
 titre_section("ÉPHÉMÉRIDES SOLAIRES")
 ligne_info("Jour", f"{nom_jour}  |  Maître du jour : {planete_regente} {SYMBOLES_PLANETES[planete_regente]}", "v-green")
 ligne_info("Constellation réelle (IAU)", const_soleil, "v-green")
+ligne_info("Signe zodiacal tropical", signe_soleil, "v-green")
 ligne_info("Lever", formater_heure(lever), "v-yellow")
 ligne_info("Coucher", formater_heure(coucher), "v-yellow")
 ligne_info("Heure diurne", formater_duree(duree_jour), "v-cyan")
@@ -314,6 +358,33 @@ st.write("")
 titre_section(f"HEURES PLANÉTAIRES ({date_selectionnee.strftime('%d/%m/%Y')})")
 
 heure_actuelle = heure_planetaire_courante(heures, maintenant)
+
+if heure_actuelle:
+    corr = CORRESPONDANCES_PLANETES[heure_actuelle["planete"]]
+    ligne_info(
+        f"Heure actuelle — {heure_actuelle['planete']} {SYMBOLES_PLANETES[heure_actuelle['planete']]}",
+        f"couleur : {corr['couleur']}  |  métal : {corr['metal']}  |  intention : {corr['intention']}",
+        "v-pink"
+    )
+else:
+    ligne_info("Heure actuelle", "hors plage (date/heure hors du cycle jour-nuit calculé)", "v-yellow")
+
+planete_filtre = st.selectbox("Prochaine heure de quelle planète ?", ["—"] + ORDRE_CHALDEEN)
+if planete_filtre != "—":
+    prochaine = next((h for h in heures if h["planete"] == planete_filtre and h["debut"] >= maintenant), None)
+    if prochaine:
+        attente = prochaine["debut"] - maintenant
+        heures_att, reste = divmod(int(attente.total_seconds()), 3600)
+        minutes_att = reste // 60
+        ligne_info(
+            f"Prochaine heure de {planete_filtre} {SYMBOLES_PLANETES[planete_filtre]}",
+            f"{formater_heure(prochaine['debut'])} - {formater_heure(prochaine['fin'])}  ({prochaine['type']}, dans {heures_att}h{minutes_att:02d})",
+            "v-pink"
+        )
+    else:
+        ligne_info(f"Prochaine heure de {planete_filtre}", "aucune restante pour cette date, change de date ou de ville", "v-yellow")
+
+st.write("")
 
 df = pd.DataFrame([{
     "N°": h["numero"],
