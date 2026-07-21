@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, date
 from zoneinfo import ZoneInfo
 from astral import LocationInfo
 from astral.sun import sun
+from timezonefinder import TimezoneFinder
 
 from skyfield.api import load, load_constellation_map
 from skyfield import almanac
@@ -21,39 +22,56 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------
-# THEME TERMINAL (CSS)
+# THEME (CSS dynamique clair / sombre)
 # ---------------------------------------------------------------
-st.markdown("""
+theme_sombre = st.sidebar.toggle("Thème sombre", value=False)
+
+if theme_sombre:
+    PALETTE = {
+        "fond": "#20222c", "titre": "#cfd6ea", "texte": "#e4e4da",
+        "ligne": "#3c3f4c", "branche": "#6b6f80",
+        "vert": "#93b3ae", "rose": "#c9b8d8", "cyan": "#8fb4c9", "jaune": "#cbbfa0",
+        "surlignage_fond": "#38404f", "surlignage_texte": "#e4e4da",
+    }
+else:
+    PALETTE = {
+        "fond": "#fffff0", "titre": "#1a2238", "texte": "#2b2d3a",
+        "ligne": "#c7c7b8", "branche": "#9a9a8c",
+        "vert": "#2f4858", "rose": "#1a2238", "cyan": "#3d5a73", "jaune": "#52504a",
+        "surlignage_fond": "#d8dce6", "surlignage_texte": "#1a2238",
+    }
+
+st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
 
-.stApp {
-    background-color: #fffff0;
+.stApp {{
+    background-color: {PALETTE['fond']};
     font-family: 'JetBrains Mono', 'Courier New', monospace;
-}
-.section-title {
-    color: #1a2238;
+}}
+.section-title {{
+    color: {PALETTE['titre']};
     font-weight: 700;
     font-size: 1.05rem;
     letter-spacing: 0.5px;
     margin-top: 6px;
-}
-.section-line {
+}}
+.section-line {{
     border: none;
-    border-top: 1px solid #c7c7b8;
+    border-top: 1px solid {PALETTE['ligne']};
     margin: 4px 0 14px 0;
-}
-.info-row {
-    color: #2b2d3a;
+}}
+.info-row {{
+    color: {PALETTE['texte']};
     font-size: 0.95rem;
     margin: 3px 0;
     line-height: 1.5;
-}
-.branch { color: #9a9a8c; margin-right: 6px; }
-.v-green { color: #2f4858; font-weight: 700; }
-.v-pink  { color: #1a2238; font-weight: 700; }
-.v-cyan  { color: #3d5a73; font-weight: 700; }
-.v-yellow{ color: #52504a; font-weight: 700; }
+}}
+.branch {{ color: {PALETTE['branche']}; margin-right: 6px; }}
+.v-green {{ color: {PALETTE['vert']}; font-weight: 700; }}
+.v-pink  {{ color: {PALETTE['rose']}; font-weight: 700; }}
+.v-cyan  {{ color: {PALETTE['cyan']}; font-weight: 700; }}
+.v-yellow{{ color: {PALETTE['jaune']}; font-weight: 700; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -80,8 +98,13 @@ def charger_ressources_skyfield():
     constellation_at = load_constellation_map()
     return ts, eph, constellation_at
 
+@st.cache_resource
+def charger_timezonefinder():
+    return TimezoneFinder()
+
 ts, eph, constellation_at = charger_ressources_skyfield()
 earth, moon, sun_obj = eph['earth'], eph['moon'], eph['sun']
+tf = charger_timezonefinder()
 
 # ---------------------------------------------------------------
 # CONSTANTES & CONFIGURATION LOCALISATION
@@ -89,7 +112,8 @@ earth, moon, sun_obj = eph['earth'], eph['moon'], eph['sun']
 LATITUDE_DEFAUT = 43.6045   # Toulouse (utilisée si aucune ville saisie ou géocodage impossible)
 LONGITUDE_DEFAUT = 1.4442
 VILLE_DEFAUT = "Toulouse"
-TZ_NAME = "Europe/Paris"
+TZ_NAME_DEFAUT = "Europe/Paris"
+TZ_NAME = TZ_NAME_DEFAUT
 TZ_LOCAL = ZoneInfo(TZ_NAME)
 
 ORDRE_CHALDEEN = ["Saturne", "Jupiter", "Mars", "Soleil", "Vénus", "Mercure", "Lune"]
@@ -312,20 +336,45 @@ def prochaines_phases_lunaires(date_cible_dt, jours_recherche=45):
 
     return prochaine_nl, const_nl, prochaine_pl, const_pl
 
+def construire_vue_semaine(date_depart, jours=7):
+    """Aperçu compact : maître du jour, phase lunaire et signe solaire
+    tropical pour chaque jour à partir de date_depart (calculé à midi
+    heure locale pour chaque jour)."""
+    lignes = []
+    for i in range(jours):
+        jour_dt = date_depart + timedelta(days=i)
+        jour_semaine_idx = jour_dt.weekday()
+        planete_reg, nom_j = REGENTS_JOURS[jour_semaine_idx]
+        midi = datetime.combine(jour_dt, datetime.min.time(), tzinfo=TZ_LOCAL) + timedelta(hours=12)
+        infos_l = calculer_infos_lunaires(midi)
+        signe_s = calculer_signe_tropical(sun_obj, midi)
+        lignes.append({
+            "Date": jour_dt.strftime("%d/%m"),
+            "Jour": nom_j,
+            "Maître": f"{SYMBOLES_PLANETES[planete_reg]}  {planete_reg}",
+            "Phase lunaire": infos_l["phase_nom"],
+            "Soleil": signe_s,
+        })
+    return pd.DataFrame(lignes)
+
 # ---------------------------------------------------------------
 # INTERFACE STREAMLIT
 # ---------------------------------------------------------------
-st.title("Heures planétaires et Lune")
-st.caption("Position des astres dans le ciel réel. Donc les 7 planètes visibles.")
+st.title("Heures Planétaires & Lune")
+st.caption("Position des astres dans le ciel réel")
 
 ville_saisie = st.sidebar.text_input("Ta ville", value=VILLE_DEFAUT)
 lat_util, lon_util, nom_lieu_trouve, ville_trouvee = geocoder_ville(ville_saisie)
-lieu = LocationInfo("Local", "France", TZ_NAME, lat_util, lon_util)
+
+TZ_NAME = tf.timezone_at(lat=lat_util, lng=lon_util) or TZ_NAME_DEFAUT
+TZ_LOCAL = ZoneInfo(TZ_NAME)
+lieu = LocationInfo("Local", "", TZ_NAME, lat_util, lon_util)
 
 if ville_trouvee:
     st.sidebar.caption(f"Localisation : {nom_lieu_trouve}")
+    st.sidebar.caption(f"Fuseau horaire détecté : {TZ_NAME}")
 else:
-    st.sidebar.caption(f"Ville introuvable, localisation par défaut : {VILLE_DEFAUT}")
+    st.sidebar.caption(f"Ville introuvable, localisation par défaut : {VILLE_DEFAUT} ({TZ_NAME})")
 
 date_defaut = date.today()
 if "date" in st.query_params:
@@ -366,7 +415,7 @@ if prochaine_pl:
 st.write("")
 
 # --- Section : Éphémérides solaires ---
-titre_section("ÉPHÉMÉRIDE SOLAIRE")
+titre_section("ÉPHÉMÉRIDES SOLAIRES")
 ligne_info(
     "Jour",
     f"{nom_jour}  |  Maître du jour : {planete_regente} {SYMBOLES_PLANETES[planete_regente]}"
@@ -379,6 +428,18 @@ ligne_info("Lever", formater_heure(lever), "v-yellow")
 ligne_info("Coucher", formater_heure(coucher), "v-yellow")
 ligne_info("Heure diurne", formater_duree(duree_jour), "v-cyan")
 ligne_info("Heure nocturne", formater_duree(duree_nuit), "v-cyan")
+
+st.write("")
+
+# --- Section : Vue de la semaine ---
+titre_section("VUE DE LA SEMAINE")
+df_semaine = construire_vue_semaine(date_selectionnee)
+st.dataframe(
+    df_semaine,
+    hide_index=True,
+    width='stretch',
+    height=(len(df_semaine) + 1) * 35 + 3
+)
 
 st.write("")
 
@@ -459,7 +520,7 @@ def styliser(heures_liste, heure_active):
     mask = pd.Series([h is heure_active for h in heures_liste])
     def style_ligne(row):
         if mask[row.name]:
-            return ["background-color: #d8dce6; color: #1a2238; font-weight: 700"] * len(row)
+            return [f"background-color: {PALETTE['surlignage_fond']}; color: {PALETTE['surlignage_texte']}; font-weight: 700"] * len(row)
         return [""] * len(row)
     return style_ligne
 
